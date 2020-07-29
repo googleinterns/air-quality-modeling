@@ -1,0 +1,1 @@
+{"collections": {"ortho": "GOOGLE/GEO/ALL/AERIAL/CANDID/ORTHO/MULTISPECTRAL", "tropomi": "COPERNICUS/S5P/OFFL/L3_NO2"}, "bands": {"ortho": ["B", "G", "R", "N", "P"], "tropomi": ["NO2_column_number_density"]}, "rename": {"tropomi": ["NO2"]}, "patch": ["B", "G", "R", "N", "P"], "range": {"tropomi": [-4, "hour"]}}
