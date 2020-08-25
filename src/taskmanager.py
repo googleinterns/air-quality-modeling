@@ -22,7 +22,7 @@ import time
 class TaskManager(object):
     """Class to manage tasks by running a limited number of tasks at a time."""
 
-    def __init__(self, n_active=3, n_waiting=20, verbose=False):
+    def __init__(self, n_active=3, n_waiting=7, verbose=False):
         """
         Parameters.
 
@@ -77,14 +77,14 @@ class TaskManager(object):
     def check_tasks(self):
         """Manage the submitted tasks asynchronously in the thread.
 
-        Checks one active task every 1 second, if a task finishes running
+        Checks one active task every 2 seconds, if a task finishes running
         then it will start a task from the waiting queue (if there is any).
         Returns
         -------
         None.
         """
         while True:
-            time.sleep(1)
+            time.sleep(2)
             self.lock.acquire()
             if len(self.waiting_tasks) > 0:
                 if len(self.active_tasks) < self.n_active:
@@ -93,13 +93,13 @@ class TaskManager(object):
                     self.active_tasks.append(task)
                 else:
                     status = self.active_tasks[self.state].status()
-                    if status['state'].upper() != 'RUNNNING':
+                    if status['state'].upper() not in ['READY','RUNNING']:
                         if self.verbose:
                             print("Task %s finished with status: %s" % (
                                 status['description'], status['state']))
                         task = self.waiting_tasks.pop(0)
                         task.start()
-                        if self.verbose: print("Started task %s" % task.status()['ID'])
+                        if self.verbose: print("Started task %s" % task.status()['description'])
 
                         self.active_tasks[self.state] = task
                     self.state = (self.state+1) % self.n_active

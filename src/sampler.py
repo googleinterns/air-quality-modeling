@@ -2,9 +2,9 @@ import ee
 import time
 class SampleExporter(object):
 
-    def __init__(self, num_shards, features, task_manager, bucket, directory):
+    def __init__(self, num_shards, task_manager, bucket, directory):
         self.num_shards = num_shards
-        self.features =  features
+        #self.features =  features
         self.task_manager = task_manager
         self.bucket = bucket
         self.directory = directory
@@ -15,16 +15,17 @@ class SampleExporter(object):
                        export_id):
         valid_pixels = image.select('valid').int()
         valid_pixels = valid_pixels.updateMask(valid_pixels)
-        valid_samples = valid_pixels.stratifiedSample(numPoints=1000,
+        valid_samples = valid_pixels.stratifiedSample(numPoints=n_samples,
                                                       classBand="valid",
                                                       region=image.geometry(),
                                                       scale=scale,
                                                       tileScale=2,
                                                       geometries=True)
 
+        patch_names = ["patch_%s" % b for b in patch_bands]
         patches = image.select(patch_bands).neighborhoodToArray(kernel).select(
-            patch_bands,["patch_%s"%b for b in patch_bands])
-
+            patch_bands,patch_names)
+        
         combined = ee.Image.cat([image,patches])
         def get_sample(feature):
             return combined.sample(numPixels=1,
@@ -32,9 +33,9 @@ class SampleExporter(object):
                                    scale=scale).first()
         samples = valid_samples.map(get_sample)
 
-        self.export_tasks(samples, export_id)
+        self.export_tasks(samples, bands+patch_names, export_id)
         
-    def export_tasks(self, samples, export_id):
+    def export_tasks(self, samples, features, export_id):
         samples_for_sharding = samples.randomColumn('shard_split')
         for i in range(self.num_shards):
             range_min = float(i)/float(self.num_shards)
@@ -49,7 +50,7 @@ class SampleExporter(object):
                   bucket = self.bucket,
                   fileNamePrefix = self.directory + '/' + export_id+"_%i"%i,
                   fileFormat = 'TFRecord',
-                  selectors = self.features,
+                  selectors = features,
                   maxWorkers=2000
               )
             while self.task_manager.busy(): time.sleep(1)

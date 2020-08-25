@@ -1,3 +1,2 @@
-
-export_params/params.json
 .spyproject/*
+*.json

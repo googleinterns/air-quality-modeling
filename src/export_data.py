@@ -51,7 +51,8 @@ if __name__ == "__main__":
         params['bands']['road'] + params['bands']['dsm'] + \
         ["%i_%s" % (i, b) for b in params['bands']['wind'] for i in range(12)]
 
-    BANDS = PATCH_BANDS + ["HOD", "DOW", "DOM", "MOY", 'valid']
+    BANDS = PATCH_BANDS + ["HOD", "DOW", "DOM", "MOY", "latitude", "longitude", "valid"]
+ 
     SCALE = params['scale']
     KERNEL_RADIUS = params['kernel_radius']
 
@@ -60,8 +61,8 @@ if __name__ == "__main__":
 
 
     task_manager = TaskManager(verbose=True)
-    sampler = SampleExporter(num_shards=n_shards, features=BANDS+PATCH_BANDS,
-                             task_manager=task_manager, bucket=bucket,
+    sampler = SampleExporter(num_shards=n_shards,task_manager=task_manager,
+			     bucket=bucket,
                              directory=export_folder)
 
     multispectral = wrappers.MultiSpectralImagery(
@@ -92,7 +93,7 @@ if __name__ == "__main__":
         return ee.Image.cat([hour_of_day, day_of_week,
                              day_of_month, month_of_year])
     print("Exporting %i multispectral"% len(multispectral))
-    for j in range(len(multispectral)):
+    for j in range(2, len(multispectral)):
 
         spectral_image = multispectral[j]
         date = ee.Date(spectral_image.get('collectionStartTime'))
@@ -135,18 +136,16 @@ if __name__ == "__main__":
             n_valid = valid_neighborhood.reduceRegion(ee.Reducer.sum(),
                                                       geometry,
                                                       SCALE)
-            combined = ee.Image(ee.Image.cat([multi_bands, tropomi_bands,
+            combined = ee.Image.cat([multi_bands, tropomi_bands,
                                               dsm_bands, wind_bands,
                                               road_bands,
                                               add_day_bands(tropomi_date,
                                                             total_mask).clipToBoundsAndScale(
 							geometry, scale=SCALE),
                                               latlon,
-                                              valid_neighborhood]).setMulti(
-                                                  n_valid)).mask(
+                                              valid_neighborhood]).updateMask(
                                                       total_mask).select(BANDS)
-
-            return ee.Algorithms.If(ee.Number(combined.get('valid')).gt(n_samples),
+            return ee.Algorithms.If(ee.Number(n_valid.get('valid')).gt(n_samples),
                                     combined,
                                     None)
 
@@ -154,11 +153,11 @@ if __name__ == "__main__":
         size = tropo_filtered.size().getInfo()
         listed = tropo_filtered.toList(size)
         print("%i has > %i valid points" % (size, n_samples))
-        for i in range(size):
+        for i in range(min(size,2)):
             sampler.export_patches(ee.Image(listed.get(i)),
                                    bands=BANDS,
                                    patch_bands=PATCH_BANDS,
-                                   n_samples=1000,
+                                   n_samples=n_samples,
                                    kernel=kernel,
                                    scale=SCALE,
                                    export_id=export_id+"_"+str(i))

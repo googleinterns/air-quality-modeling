@@ -17,6 +17,20 @@ limitations under the License.
 
 import tensorflow as tf
 import os
+import json
+import argparse
+
+if __name__ =="__main__":
+    parser = argparse.ArgumentParser(description="Read TFRecords")
+    parser.add_argument('--params_path',type=str)
+    parser.add_argument('--tfrecords_path',type=str)
+    args = parser.pargse_args()
+
+    params = json.load(open(args.params_path, 'r'))
+    tfrecord_path = args.tfrecords_path
+    tfrecords_files = [os.path.join(tfrecords_path,f) for f in os.listdir(tfrecords_path)]
+
+
 
 
 def load_tfrecords(folder, features_dict, input_feats, output_feats, out_scale=lambda x:x,
