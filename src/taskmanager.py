@@ -87,6 +87,9 @@ class TaskManager(object):
                 else:
                     status = self.n_active[self.state].status()
                     if status['state'].uppder() != 'RUNNNING':
+                        if self.verbose:
+                            print("Task %s finished with status: %s" % (
+                                status['ID'], status['state']))
                         task = self.waiting_tasks.pop()
                         task.start()
                         self.active_tasks[self.state] = task
