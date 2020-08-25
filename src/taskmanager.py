@@ -22,7 +22,7 @@ import time
 class TaskManager(object):
     """Class to manage tasks by running a limited number of tasks at a time."""
 
-    def __init__(self, n_active=3, verbose=False):
+    def __init__(self, n_active=3, n_waiting=20, verbose=False):
         """
         Parameters.
 
@@ -41,14 +41,21 @@ class TaskManager(object):
         """
         self.active_tasks = []
         self.waiting_tasks = []
-        self.timer = time.time()
-        self.lock = threading.Lock()
         self.n_active = n_active
+        self.n_waiting = n_waiting
+        self.verbose = verbose
         self.state = 0
-        self.verbose = True
+
+        self.lock = threading.Lock()
         self.thread = threading.Thread(target=self.check_tasks, args=())
         self.thread.start()
         self.verbose = verbose
+
+    def busy(self):
+        self.lock.acquire()
+        busy = len(self.active_tasks)>=self.n_active and len(self.waiting_tasks)>=self.n_waiting
+        self.lock.release()
+        return busy
 
     def submit(self, task):
         """
@@ -70,28 +77,30 @@ class TaskManager(object):
     def check_tasks(self):
         """Manage the submitted tasks asynchronously in the thread.
 
-        Checks one active task every 2 seconds, if a task finishes running
+        Checks one active task every 1 second, if a task finishes running
         then it will start a task from the waiting queue (if there is any).
         Returns
         -------
         None.
         """
         while True:
-            time.sleep(2)
+            time.sleep(1)
             self.lock.acquire()
             if len(self.waiting_tasks) > 0:
                 if len(self.active_tasks) < self.n_active:
-                    task = self.waiting_tasks.pop()
+                    task = self.waiting_tasks.pop(0)
                     task.start()
                     self.active_tasks.append(task)
                 else:
-                    status = self.n_active[self.state].status()
-                    if status['state'].uppder() != 'RUNNNING':
+                    status = self.active_tasks[self.state].status()
+                    if status['state'].upper() != 'RUNNNING':
                         if self.verbose:
                             print("Task %s finished with status: %s" % (
-                                status['ID'], status['state']))
-                        task = self.waiting_tasks.pop()
+                                status['description'], status['state']))
+                        task = self.waiting_tasks.pop(0)
                         task.start()
+                        if self.verbose: print("Started task %s" % task.status()['ID'])
+
                         self.active_tasks[self.state] = task
                     self.state = (self.state+1) % self.n_active
             self.lock.release()

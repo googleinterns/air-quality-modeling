@@ -214,7 +214,7 @@ class MultiSpectralImagery(CollectionClass):
 
         """
         assert i < len(self)
-        return ee.Image(self.imagery_list.get(0))
+        return ee.Image(self.imagery_list.get(i))
 
     def __len__(self):
         """.

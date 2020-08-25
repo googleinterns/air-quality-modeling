@@ -23,8 +23,6 @@ from sampler import SampleExporter
 
 
 
-ee.Authenticate()
-ee.Initialize()
 
 
 if __name__ == "__main__":
@@ -32,19 +30,22 @@ if __name__ == "__main__":
                                      )
     parser.add_argument('--params_path', type=str)
     parser.add_argument('--export_folder', type=str)
-    parser.add_argument('--bucket', type=str)
-    parser.add_argument('--samples', type=int)
-    parser.add_argument('--shards', type=int)
+    parser.add_argument('--bucket', type=str, default='aghriss-air-quality')
+    parser.add_argument('--samples', type=int, default=1000)
+    parser.add_argument('--shards', type=int, default=10)
 
     args = parser.parse_args()
-    print("Loading", (args.params_path))
+
+
     params = json.load(open(args.params_path, 'r'))
     bucket = args.bucket
     export_folder = args.export_folder
     n_samples = args.samples
     n_shards = args.shards
 
-    params = json.load(open('export_params/params.json', 'r'))
+    print("Loading", (args.params_path))
+    params_path = args.params_path
+    params = json.load(open(params_path, 'r'))
     PATCH_BANDS = params['bands']['multispectral'] + \
         params['bands']['tropomi'] + \
         params['bands']['road'] + params['bands']['dsm'] + \
@@ -53,6 +54,10 @@ if __name__ == "__main__":
     BANDS = PATCH_BANDS + ["HOD", "DOW", "DOM", "MOY", 'valid']
     SCALE = params['scale']
     KERNEL_RADIUS = params['kernel_radius']
+
+    ee.Authenticate()
+    ee.Initialize()
+
 
     task_manager = TaskManager(verbose=True)
     sampler = SampleExporter(num_shards=n_shards, features=BANDS+PATCH_BANDS,
@@ -86,13 +91,18 @@ if __name__ == "__main__":
                                                                            )
         return ee.Image.cat([hour_of_day, day_of_week,
                              day_of_month, month_of_year])
+    print("Exporting %i multispectral"% len(multispectral))
     for j in range(len(multispectral)):
+
         spectral_image = multispectral[j]
         date = ee.Date(spectral_image.get('collectionStartTime'))
         geometry = spectral_image.geometry()
         mask = spectral_image.mask().reduce(ee.Reducer.anyNonZero())
         imageInfo = spectral_image.getInfo()
         export_id = imageInfo['properties']['productionID']
+
+        print("Exporting for Multispectral %s"%export_id)
+
         multi_bands = spectral_image.clipToBoundsAndScale(geometry, scale=SCALE)
         multi_mask = mask.clipToBoundsAndScale(geometry, scale=SCALE)
         tropo = tropomi.get_bands(date, geometry)
@@ -106,7 +116,7 @@ if __name__ == "__main__":
             tropomi_date = tropomi_bands.date()
             tropomi_mask = tropomi_bands.mask().reduce(ee.Reducer.anyNonZero())
             wind_bands = wind.get_bands(tropomi_date, geometry)
-            dsm_bands = dsm.get_bands(tropomi_date, geometry)
+            dsm_bands = dsm.get_bands(tropomi_date, geometry).clipToBoundsAndScale(geometry, scale=SCALE)
             total_mask = multi_mask.float().addBands(tropomi_mask).reduce(
                                                             ee.Reducer.allNonZero()
                                                             )
@@ -129,21 +139,22 @@ if __name__ == "__main__":
                                               dsm_bands, wind_bands,
                                               road_bands,
                                               add_day_bands(tropomi_date,
-                                                            total_mask),
+                                                            total_mask).clipToBoundsAndScale(
+							geometry, scale=SCALE),
                                               latlon,
                                               valid_neighborhood]).setMulti(
                                                   n_valid)).mask(
                                                       total_mask).select(BANDS)
 
-            return ee.Algorithms.If(ee.Number(combined.get('valid')).gt(1000),
+            return ee.Algorithms.If(ee.Number(combined.get('valid')).gt(n_samples),
                                     combined,
                                     None)
 
         tropo_filtered = tropo.map(add_bands, opt_dropNulls=True)
         size = tropo_filtered.size().getInfo()
         listed = tropo_filtered.toList(size)
+        print("%i has > %i valid points" % (size, n_samples))
         for i in range(size):
-
             sampler.export_patches(ee.Image(listed.get(i)),
                                    bands=BANDS,
                                    patch_bands=PATCH_BANDS,

@@ -1,5 +1,5 @@
 import ee
-
+import time
 class SampleExporter(object):
 
     def __init__(self, num_shards, features, task_manager, bucket, directory):
@@ -52,5 +52,6 @@ class SampleExporter(object):
                   selectors = self.features,
                   maxWorkers=2000
               )
+            while self.task_manager.busy(): time.sleep(1)
             self.task_manager.submit(task)
 
