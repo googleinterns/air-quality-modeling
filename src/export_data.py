@@ -23,7 +23,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Export Data from EarthEngine'
                                      )
     parser.add_argument('--params_path', type=str,
-                        help="json paramter fiel location")
+                        help="json parameters file location")
     parser.add_argument('--export_folder', type=str,
                         help="Cloud export folder")
     parser.add_argument('--bucket', type=str,
@@ -47,8 +47,8 @@ if __name__ == "__main__":
     print("Loading", (args.params_path))
     params_path = args.params_path
     params = json.load(open(params_path, 'r'))
-
-    PATCH_BANDS = params['bands']['multispectral']
+    PATCH_BANDS = []
+    PATCH_BANDS += params['bands']['multispectral']
     PATCH_BANDS += params['bands']['tropomi']
     PATCH_BANDS += params['bands']['road'] + params['bands']['dsm']
     STACKED_WIND_BANDS = ["%i_%s" % (i, b) for b in params['bands']['wind']
@@ -58,7 +58,7 @@ if __name__ == "__main__":
                            "valid"]
     SCALE = params['scale']
     KERNEL_RADIUS = params['kernel_radius']
-
+    # Initialize EE
     ee.Authenticate()
     ee.Initialize()
     # Creating diffrent kernels
@@ -73,8 +73,7 @@ if __name__ == "__main__":
     # Initializing smaple exporter and TaskManager
     task_manager = TaskManager(verbose=True)
     sampler = SampleExporter(task_manager, num_samples, num_shards,
-                             kernel, SCALE, BANDS, PATCH_BANDS, BUCKET,
-                             DIRECTORY)
+                             kernel, SCALE, BUCKET, DIRECTORY)
     # Initializing imagery classes
     multispectral = MultiSpectralImagery(params['collections']['multispectral'],
                                          start_date="2018-01-01",
@@ -97,11 +96,12 @@ if __name__ == "__main__":
 
     # First 2 images already exported
     for j in range(2, len(multispectral)):
+
         multispectral_image = multispectral[j]
         image_info = multispectral_image.getInfo()
         image_id = image_info['properties']['productionID']
 
-        print("Exporting for Multispectral %s" % image_id)
+        print("Exporting for Multispectral N:%i, %s" % (j, image_id))
 
         stacked_bands_images = images_with_stacked_bands(multispectral_image,
                                                          wind, dsm, road,
@@ -119,3 +119,4 @@ if __name__ == "__main__":
                                    bands=BANDS,
                                    patch_bands=PATCH_BANDS,
                                    export_id=export_id)
+
