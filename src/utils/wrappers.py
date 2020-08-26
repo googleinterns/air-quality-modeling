@@ -59,16 +59,16 @@ class CollectionClass:
         Parameters
         ----------
         geometry : ee.Geometry
-            DESCRIPTION.
+            Geometry to clip to
         start_date : String/EE.Date
-            DESCRIPTION.
+            Start date to filter the date
         end_date : String/EE.Date
-            DESCRIPTION.
+            End date to filter the date
 
         Returns
         -------
-        TYPE
-            DESCRIPTION.
+        ee.ImageCollection
+            Date filtered and clipped images
 
         """
         images = self.imagery.filterBounds(geometry)
@@ -81,7 +81,7 @@ class CollectionClass:
 class RoadImagery:
     """Road Imagery Class: Wrapper for ee.Image."""
 
-    def __init__(self, link, bands):
+    def __init__(self, link, bands=None):
         """Initialize the Imagery Class.
 
         Parameters
@@ -97,7 +97,9 @@ class RoadImagery:
 
         """
         self.bands = bands
-        self.imagery = ee.Image(link).select(self.bands)
+        self.imagery = ee.Image(link)
+        if self.bands:
+            self.imagery = self.imagery.select(self.bands)
 
     def get_bands(self, geometry):
         """Returns Road band.
