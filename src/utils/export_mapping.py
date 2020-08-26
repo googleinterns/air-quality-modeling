@@ -41,7 +41,7 @@ def stack_bands_from_imagery(multispectral_image, wind, dsm, road, tropomi,
     horizontal_kernel : ee.Kernel
         horizontal kernel for convolution
     num_samples : int
-        Minimum number of valid pixels that stacked image shoudl have
+        Minimum number of valid pixels that stacked image should have
     bands : list[str]
         list of bands that the image shoudl contain
     scale : int
@@ -68,7 +68,19 @@ def stack_bands_from_imagery(multispectral_image, wind, dsm, road, tropomi,
                                          scale=scale)
 
     def add_bands(tropomi_image):
-        """Concatenates bands from different imageries."""
+        """Matches bands from  different imaggeries with tropomi image.
+
+        Parameters
+        ----------
+        tropomi_image :ee.Image
+            Tropomi image to match the bands to
+
+        Returns
+        -------
+        ee.Image
+            Image containing all bands that have to be stacked
+
+        """
         tropomi_date = tropomi_image.date()
         tropomi_mask = tropomi_image.mask().reduce(ee.Reducer.anyNonZero())
 
@@ -106,17 +118,17 @@ def stack_bands_from_imagery(multispectral_image, wind, dsm, road, tropomi,
     return valid_stacked_bands
 
 
-def date_band(date, unit, interval, name):
+def get_date_band(date, unit, interval, name):
     """Returns an Image with relative value of unit in interval."""
     return ee.Image.constant(date.getRelative(unit, interval)).rename(name)
 
 
 def add_date_bands(date, mask):
     """Stacks relative date values of different intervals."""
-    hour_of_day = date_band(date, 'hour', 'day', 'HOD').updateMask(mask)
-    day_of_week = date_band(date, 'day', 'week', 'DOW').updateMask(mask)
-    day_of_month = date_band(date, 'day', 'week', 'DOM').updateMask(mask)
-    month_of_year = date_band(date, 'month', 'year', 'MOY').updateMask(mask
-                                                                       )
+    hour_of_day = get_date_band(date, 'hour', 'day', 'HOD').updateMask(mask)
+    day_of_week = get_date_band(date, 'day', 'week', 'DOW').updateMask(mask)
+    day_of_month = get_date_band(date, 'day', 'week', 'DOM').updateMask(mask)
+    month_of_year = get_date_band(date, 'month', 'year', 'MOY').updateMask(mask)
+
     return ee.Image.cat([hour_of_day, day_of_week,
                          day_of_month, month_of_year])

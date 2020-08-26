@@ -196,7 +196,7 @@ class MultiSpectralImagery(CollectionClass):
         ee.Image
 
         """
-        assert i < len(self)
+        assert i < len(self), "index exceeds MultiSpectral size"
         image = ee.Image(self.imagery_list.get(i))
         return image.clipToBoundsAndScale(image.geometry(), scale=self.scale)
 
@@ -210,6 +210,9 @@ class DSMImagery(CollectionClass):
 
     def __init__(self, link, scale, bands=None):
         """Initializes DSMImagery object.
+
+        It is always scaled since native scale (1-30m) is lower than
+        the scale we use (50-100m).
 
         Parameters
         ----------
@@ -267,7 +270,7 @@ class WindImagery(CollectionClass):
         link : str
         bands : list[str] optional
         before_range : tuple, optional
-            Extent of wind bands to take before givne date.
+            Extent of wind bands to take before given date.
             The default is (-12, 'hour').
         """
         super(WindImagery, self).__init__(link, bands)

@@ -24,61 +24,61 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from utils import TaskManager
 from dummytask import DummyTask
 
+
 # run : python -m unittest taskmanager_test.py
 class TestTaskManager(unittest.TestCase):
-    """Unit testing the TaskManaget.
-        Tasks are stills running at the end"""
+    """Unittests the TaskManagr (Tasks are stills running at the end)."""
 
     def test_added(self):
-        """ Assert that total submitted tasks is consistent."""
-        n_active = random.randint(3, 10)
-        n_waiting = random.randint(5, 15)
-        task_manager = TaskManager(n_active=n_active,
-                                   n_waiting=n_waiting,
+        """Asserts that total submitted tasks is consistent."""
+        max_active = random.randint(3, 10)
+        max_waiting = random.randint(5, 15)
+        task_manager = TaskManager(max_active=max_active,
+                                   max_waiting=max_waiting,
                                    interval=0.1)
-        for _ in range(n_active):
+        for _ in range(max_active):
             task_manager.submit(DummyTask())
         task_manager.lock.acquire()
         added_tasks = len(task_manager.active_tasks)
         added_tasks += len(task_manager.waiting_tasks)
         task_manager.lock.release()
-        self.assertEqual(n_active, added_tasks)
+        self.assertEqual(max_active, added_tasks)
 
     def test_active(self):
-        """Assert that after n_active intervals, n_active tasks are active."""
-        n_active = random.randint(3, 10)
-        n_waiting = random.randint(5, 15)
-        task_manager = TaskManager(n_active=n_active,
-                                   n_waiting=n_waiting,
+        """Asserts that after max_active intervals, max_active tasks are active."""
+        max_active = random.randint(3, 10)
+        max_waiting = random.randint(5, 15)
+        task_manager = TaskManager(max_active=max_active,
+                                   max_waiting=max_waiting,
                                    interval=0.01)
-        for _ in range(n_active):
+        for _ in range(max_active):
             task_manager.submit(DummyTask())
-        time.sleep(0.02*n_active)
+        time.sleep(0.02*max_active)
         task_manager.lock.acquire()
         active_tasks = len(task_manager.active_tasks)
         task_manager.lock.release()
-        self.assertEqual(n_active, active_tasks)
+        self.assertEqual(max_active, active_tasks)
 
     def test_busy(self):
-        """Test when TaskManager is busy."""
-        n_active = random.randint(3, 6)
-        n_waiting = random.randint(3, 6)
+        """Tests when TaskManager is busy."""
+        max_active = random.randint(3, 6)
+        max_waiting = random.randint(3, 6)
         task = DummyTask()  # Controlled task
-        task_manager = TaskManager(n_active=n_active,
-                                   n_waiting=n_waiting,
+        task_manager = TaskManager(max_active=max_active,
+                                   max_waiting=max_waiting,
                                    interval=0.01)
         # All tasks take at least 5 seconds to finish
         task_manager.submit(task)
-        for _ in range(n_active+n_waiting-1):
+        for _ in range(max_active+max_waiting-1):
             task_manager.submit(DummyTask())
-        # Enough time to start n_active tasks
-        time.sleep(n_active*0.1)
+        # Enough time to start max_active tasks
+        time.sleep(max_active*0.1)
         # task manager should be busy at this stage
-        self.assertEqual(task_manager.busy(), True)
+        self.assertEqual(task_manager.is_busy(), True)
         # We force a task to finish
         task.lock.acquire()
         task.state = 2
         task.lock.release()
         time.sleep(0.1)
         # task manager shoudl NOT be busy now
-        self.assertEqual(task_manager.busy(), False)
+        self.assertEqual(task_manager.is_busy(), False)
