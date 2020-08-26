@@ -17,7 +17,7 @@ limitations under the License.
 import ee
 
 
-class CollectionClass(object):
+class CollectionClass:
     """Base Imagery class for ImageCollection."""
 
     def __init__(self, link, bands=None):
@@ -25,14 +25,10 @@ class CollectionClass(object):
 
         Parameters
         ----------
-        link : TYPE
-            DESCRIPTION.
-        bands : TYPE, optional
-            DESCRIPTION. The default is None.
-
-        Returns
-        -------
-        None.
+        link : str
+            ImageCollection link
+        bands : list[str], optional
+            Name of bands to select. The default is None to take all bands.
 
         """
         self.bands = bands
@@ -40,39 +36,22 @@ class CollectionClass(object):
         if self.bands:
             self.imagery = self.imagery.select(self.bands)
 
-    def get_cropped_bands(self, geometry, scale):
-        """Clip and Scale the images after bound filter on geometry.
-
-        Parameters
-        ----------
-        geometry : ee.Geometry
-            Geometry of the bounds.
-        scale : int
-            the value of the scale to use in clipToBoundsAndScale
-        Returns
-        -------
-        None
-
-        """
-        return self.imagery.filterBounds(geometry).clipToBoundsAndScale(
-            geometry, scale=scale)
-
     def get_clipped_bands(self, geometry):
         """Get clipped images after a filter bound on geometry.
 
         Parameters
         ----------
-        geometry : TYPE
-            DESCRIPTION.
+        geometry : ee.Geometry
+            Geometry to clip to
 
         Returns
         -------
-        TYPE
-            DESCRIPTION.
+        ee.ImageCollection
+            cliped images filterbounded on geometry
 
         """
-        return self.imagery.filterBounds(geometry).map(
-            lambda x: x.clip(geometry))
+        images = self.imagery.filterBounds(geometry)
+        return images.map(lambda x: x.clip(geometry))
 
     def get_clipped_range_bands(self, geometry, start_date, end_date):
         """Get clipped images from a specific date range.
@@ -92,12 +71,14 @@ class CollectionClass(object):
             DESCRIPTION.
 
         """
-        return self.imagery.filterBounds(geometry).filterDate(start_date,
-                                                              end_date).map(
-                                                  lambda x: x.clip(geometry))
+        images = self.imagery.filterBounds(geometry)
+
+        def clip_func(image):
+            return image.clip(geometry)
+        return images.filterDate(start_date, end_date).map(clip_func)
 
 
-class RoadImagery(object):
+class RoadImagery:
     """Road Imagery Class: Wrapper for ee.Image."""
 
     def __init__(self, link, bands):
@@ -105,10 +86,10 @@ class RoadImagery(object):
 
         Parameters
         ----------
-        link : TYPE
-            DESCRIPTION.
-        bands : TYPE
-            DESCRIPTION.
+        link : str
+            ee.Image link
+        bands : list[str], optional
+            Name of bands to select. The default is None to take all bands.
 
         Returns
         -------
@@ -116,20 +97,21 @@ class RoadImagery(object):
 
         """
         self.bands = bands
-        self.imagery = ee.Image(link).select(bands)
+        self.imagery = ee.Image(link).select(self.bands)
 
     def get_bands(self, geometry):
         """.
 
         Parameters
         ----------
-        geometry : TYPE
-            DESCRIPTION.
+        geometry : ee.Geometry
+            Geometry to clip to
+
 
         Returns
         -------
-        TYPE
-            DESCRIPTION.
+        ee.Image
+            Image clipped to the geometry
 
         """
         return self.imagery.clip(geometry).unmask(0, False)
@@ -172,7 +154,7 @@ class TropomiImagery(CollectionClass):
 class MultiSpectralImagery(CollectionClass):
     """."""
 
-    def __init__(self, link, start_date, end_date, bands=None):
+    def __init__(self, link, start_date, end_date, bands, scale):
         """.
 
         Parameters
@@ -183,8 +165,10 @@ class MultiSpectralImagery(CollectionClass):
             DESCRIPTION.
         end_date : TYPE
             DESCRIPTION.
-        bands : TYPE, optional
-            DESCRIPTION. The default is None.
+        bands : TYPE
+            DESCRIPTION.
+        scale : TYPE
+            DESCRIPTION.
 
         Returns
         -------
@@ -192,61 +176,56 @@ class MultiSpectralImagery(CollectionClass):
 
         """
         super(MultiSpectralImagery, self).__init__(link, bands)
+
         self.imagery = self.imagery.filterDate(start_date, end_date)
         self.imagery = self.imagery.filter(ee.Filter.notNull(
             ['collectionStartTime']))
         self.size = self.imagery.size().getInfo()
         self.imagery_list = self.imagery.toList(self.size)
         print("Base Imagery has %i elements" % self.size)
+        self.scale = scale
 
     def __getitem__(self, i):
         """.
 
         Parameters
         ----------
-        i : TYPE
-            DESCRIPTION.
+        i : int
+            index of element to return
 
         Returns
         -------
-        TYPE
-            DESCRIPTION.
+        ee.Image
 
         """
         assert i < len(self)
-        return ee.Image(self.imagery_list.get(i))
+        image = ee.Image(self.imagery_list.get(i))
+        return image.clipToBoundsAndScale(image.geometry(), scale=self.scale)
 
     def __len__(self):
-        """.
-
-        Returns
-        -------
-        TYPE
-            DESCRIPTION.
-
-        """
+        """Return length of collection list."""
         return self.size
 
 
 class DSMImagery(CollectionClass):
-    """."""
+    """DSM Imagery wrapper."""
 
-    def get_bands(self, date, geometry):
-        """.
+    def get_bands(self, date, geometry, scale):
+        """DSM is always scaled, hence the need for scale argument.
 
         Parameters
         ----------
-        date : TYPE
-            DESCRIPTION.
-        geometry : TYPE
-            DESCRIPTION.
-        scale : TYPE, optional
-            DESCRIPTION. The default is None.
+        date : ee.Date
+            Date to which most recent imagery is taken
+        geometry : ee.Geometry
+            Geometry to which images are clipped
+        scale : int, optional
+            Scale of the images (m/pixel)
 
         Returns
         -------
-        TYPE
-            DESCRIPTION.
+        ee.Image
+            Image with most recent data before the given date
 
         """
         images = self.imagery.filterBounds(geometry)
@@ -257,11 +236,11 @@ class DSMImagery(CollectionClass):
 
         images = images.map(add_hour_difference)
         images = images.filter(ee.Filter.gt('hour_difference', 0))
-        images = images.sort('hour_difference', True).reduce(
-                    ee.Reducer.firstNonNull()).select(["%s_first" % b
-                                                       for b in self.bands],
-                                                      self.bands)
-        return images.clip(geometry)
+        clip_scale_func = clip_and_scale(geometry, scale)
+        images = images.sort('hour_difference', True).map(clip_scale_func)
+        image = images.reduce(ee.Reducer.firstNonNull())
+        image = image.select(["%s_first" % b for b in self.bands], self.bands)
+        return image
 
 
 class WindImagery(CollectionClass):
@@ -272,59 +251,49 @@ class WindImagery(CollectionClass):
 
         Parameters
         ----------
-        link : TYPE
-            DESCRIPTION.
-        bands : TYPE, optional
-            DESCRIPTION. The default is None.
-        before_range : TYPE, optional
-            DESCRIPTION. The default is (-12, 'hour').
-
-        Returns
-        -------
-        None.
-
+        link : str
+        bands : list[str] optional
+        before_range : tuple, optional
+            Extent of wind bands to take before givne date.
+            The default is (-12, 'hour').
         """
         super(WindImagery, self).__init__(link, bands)
         self.before = before_range
 
     def get_bands(self, date, geometry):
-        """.
+        """Get stacked bands from the wind imagery range.
 
         Parameters
         ----------
-        date : TYPE
-            DESCRIPTION.
-        geometry : TYPE
-            DESCRIPTION.
+        date : ee.Date
+        geometry : ee.Geometry
 
         Returns
         -------
-        TYPE
-            DESCRIPTION.
+        ee.Image
+            Wind bands where i_b is value of band "b" "i" hours before date.
 
         """
         images = self.get_clipped_bands(geometry)
         images = images.filter(ee.Filter.date(date.advance(*self.before), date)
                                )
-        images = images.map(lambda img: self.stack_bands(img, date).clip(
+        images = images.map(lambda img: self._stack_bands(img, date).clip(
             geometry))
 
         return merge_bands(images)
 
-    def stack_bands(self, img, date):
-        """.
+    def _stack_bands(self, img, date):
+        """Stack bands from different images, helper method.
 
         Parameters
         ----------
-        img : TYPE
-            DESCRIPTION.
-        date : TYPE
-            DESCRIPTION.
+        img : ee.Image
+        date : ee.Date
 
         Returns
         -------
-        TYPE
-            DESCRIPTION.
+        ee.Image
+            Image with renamed band preficed by time difference in hours
 
         """
         return img.select(self.bands,
@@ -335,12 +304,33 @@ class WindImagery(CollectionClass):
 
 
 def merge_bands(images):
-    """.
+    """Create image from collection by stacking the bands from the images.
 
     Parameters
     ----------
     images : ee.ImageCollection
-        DESCRIPTION.
+        The image collection from which bands will be stacked
+
+    Returns
+    -------
+    ee.Image
+        Image with stacked bands
+
+    """
+    def stack_bands(new, previous):
+        return ee.Image(previous).addBands(new)
+
+    return ee.Image(images.iterate(stack_bands, ee.Image(None)))
+
+
+def clip_and_scale(geometry, scale):
+    """Return clipToBoundsAndScale map function.
+
+    Parameters
+    ----------
+    geometry : ee.Geometry
+    scale : int
+
 
     Returns
     -------
@@ -348,6 +338,6 @@ def merge_bands(images):
         DESCRIPTION.
 
     """
-    return ee.Image(images.iterate(
-                (lambda image, previous: ee.Image(previous).addBands(image)),
-                ee.Image(None)))
+    def clip_scale(image):
+        return image.clipToBoundsAndScale(geometry, scale=scale)
+    return clip_scale

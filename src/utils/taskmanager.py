@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-
 import threading
 import time
 
@@ -22,21 +21,21 @@ import time
 class TaskManager(object):
     """Class to manage tasks by running a limited number of tasks at a time."""
 
-    def __init__(self, n_active=3, n_waiting=7, verbose=False):
-        """
-        Parameters.
+    def __init__(self, n_active=3, n_waiting=7, interval=2.0, verbose=False):
+        """.
 
+        Parameters
         ----------
         n_active : int, optional
             Number of simultaneously active tasks. This is different from
             the maximum number of running tasks in Earth Engine.
             The default is 3.
+        n_waiting : int, optional
+            Maximum number of tasks in the waiting queue. The default is 7.
+        interval : float, optional
+            Waiting time between task status check. The default is 2.0.
         verbose : Boolean, optional
             Prints the class operations. The default is False.
-
-        Returns
-        -------
-        None.
 
         """
         self.active_tasks = []
@@ -46,19 +45,40 @@ class TaskManager(object):
         self.verbose = verbose
         self.state = 0
 
+        self.interval = interval
         self.lock = threading.Lock()
+        self.running = True
         self.thread = threading.Thread(target=self.check_tasks, args=())
         self.thread.start()
         self.verbose = verbose
 
-    def busy(self):
+    def stop(self):
+        """Stop TaskManager Thread and cancel all tasks."""
         self.lock.acquire()
-        busy = len(self.active_tasks)>=self.n_active and len(self.waiting_tasks)>=self.n_waiting
+        for t in (self.active_tasks+self.waiting_tasks):
+            t.cancel()
+        self.running = False
+        self.lock.release()
+        self.thread.join()
+
+    def busy(self):
+        """Return True if active queue the waiting queue are full.
+
+        Returns
+        -------
+        busy : Boolean
+            True is the task manager os busy, False otherwise
+
+        """
+        self.lock.acquire()
+        busy = (len(self.active_tasks) >= self.n_active and
+                len(self.waiting_tasks) >= self.n_waiting)
         self.lock.release()
         return busy
 
     def submit(self, task):
-        """
+        """Block the tasks management to add a task.
+
         Parameters.
 
         ----------
@@ -70,6 +90,8 @@ class TaskManager(object):
         None.
 
         """
+        while(self.busy()):
+            time.sleep(self.interval/2)
         self.lock.acquire()
         self.waiting_tasks.append(task)
         self.lock.release()
@@ -83,8 +105,8 @@ class TaskManager(object):
         -------
         None.
         """
-        while True:
-            time.sleep(2)
+        while self.running:
+            time.sleep(self.interval)
             self.lock.acquire()
             if len(self.waiting_tasks) > 0:
                 if len(self.active_tasks) < self.n_active:
@@ -93,13 +115,15 @@ class TaskManager(object):
                     self.active_tasks.append(task)
                 else:
                     status = self.active_tasks[self.state].status()
-                    if status['state'].upper() not in ['READY','RUNNING']:
+                    if status['state'].upper() not in ['READY', 'RUNNING']:
                         if self.verbose:
                             print("Task %s finished with status: %s" % (
                                 status['description'], status['state']))
                         task = self.waiting_tasks.pop(0)
                         task.start()
-                        if self.verbose: print("Started task %s" % task.status()['description'])
+                        if self.verbose:
+                            print("Started task %s" %
+                                  task.status()['description'])
 
                         self.active_tasks[self.state] = task
                     self.state = (self.state+1) % self.n_active

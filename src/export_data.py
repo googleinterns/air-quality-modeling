@@ -1,5 +1,4 @@
-'''
-Copyright 2020 Google LLC
+"""Copyright 2020 Google LLC.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -12,152 +11,111 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-'''
+"""
 
-import ee
 import json
 import argparse
-import wrappers
-from taskmanager import TaskManager
-from sampler import SampleExporter
-
-
-
-
+import ee
+from utils import TaskManager, SampleExporter, images_with_stacked_bands
+from utils import RoadImagery, MultiSpectralImagery, TropomiImagery, DSMImagery, WindImagery
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Export Data from EarthEngine'
                                      )
-    parser.add_argument('--params_path', type=str)
-    parser.add_argument('--export_folder', type=str)
-    parser.add_argument('--bucket', type=str, default='aghriss-air-quality')
-    parser.add_argument('--samples', type=int, default=1000)
-    parser.add_argument('--shards', type=int, default=10)
+    parser.add_argument('--params_path', type=str,
+                        help="json paramter fiel location")
+    parser.add_argument('--export_folder', type=str,
+                        help="Cloud export folder")
+    parser.add_argument('--bucket', type=str,
+                        help="bucket name",
+                        default='aghriss-air-quality')
+    parser.add_argument('--num_samples', type=int,
+                        help="number of samples to export per image",
+                        default=1000)
+    parser.add_argument('--num_shards', type=int,
+                        help="number of sharding of samples before export",
+                        default=10)
 
     args = parser.parse_args()
 
-
     params = json.load(open(args.params_path, 'r'))
-    bucket = args.bucket
-    export_folder = args.export_folder
-    n_samples = args.samples
-    n_shards = args.shards
+    BUCKET = args.bucket
+    DIRECTORY = args.export_folder
+    num_samples = args.num_samples
+    num_shards = args.num_shards
 
     print("Loading", (args.params_path))
     params_path = args.params_path
     params = json.load(open(params_path, 'r'))
-    PATCH_BANDS = params['bands']['multispectral'] + \
-        params['bands']['tropomi'] + \
-        params['bands']['road'] + params['bands']['dsm'] + \
-        ["%i_%s" % (i, b) for b in params['bands']['wind'] for i in range(12)]
 
-    BANDS = PATCH_BANDS + ["HOD", "DOW", "DOM", "MOY", "latitude", "longitude", "valid"]
- 
+    PATCH_BANDS = params['bands']['multispectral']
+    PATCH_BANDS += params['bands']['tropomi']
+    PATCH_BANDS += params['bands']['road'] + params['bands']['dsm']
+    STACKED_WIND_BANDS = ["%i_%s" % (i, b) for b in params['bands']['wind']
+                          for i in range(12)]
+    PATCH_BANDS += STACKED_WIND_BANDS
+    BANDS = PATCH_BANDS + ["HOD", "DOW", "DOM", "MOY", "latitude", "longitude",
+                           "valid"]
     SCALE = params['scale']
     KERNEL_RADIUS = params['kernel_radius']
 
     ee.Authenticate()
     ee.Initialize()
-
-
-    task_manager = TaskManager(verbose=True)
-    sampler = SampleExporter(num_shards=n_shards,task_manager=task_manager,
-			     bucket=bucket,
-                             directory=export_folder)
-
-    multispectral = wrappers.MultiSpectralImagery(
-        link=params['collections']['multispectral'],
-        start_date="2018-01-01",
-        end_date="2019-12-31",
-        bands=params['bands']['multispectral'])
-    tropomi = wrappers.TropomiImagery(link=params['collections']['tropomi'],
-                                      bands=params['bands']['tropomi'])
-    wind = wrappers.WindImagery(link=params['collections']['wind'],
-                                bands=params['bands']['wind'])
-    dsm = wrappers.DSMImagery(link=params['collections']['dsm'],
-                              bands=params['bands']['dsm'])
-    road = wrappers.RoadImagery(link=params['collections']['road'],
-                                bands=params['bands']['road'])
-
+    # Creating diffrent kernels
     kernel = ee.Kernel.square(KERNEL_RADIUS)
+    # vertical and horizontal kernel used in calculating valid pixels
+    vertical_kernel = ee.Kernel.rectangle(xRadius=1,
+                                          yRadius=KERNEL_RADIUS,
+                                          units='pixels')
+    horizontal_kernel = ee.Kernel.rectangle(xRadius=KERNEL_RADIUS,
+                                            yRadius=1,
+                                            units='pixels')
+    # Initializing smaple exporter and TaskManager
+    task_manager = TaskManager(verbose=True)
+    sampler = SampleExporter(task_manager, num_samples, num_shards,
+                             kernel, SCALE, BANDS, PATCH_BANDS, BUCKET,
+                             DIRECTORY)
+    # Initializing imagery classes
+    multispectral = MultiSpectralImagery(params['collections']['multispectral'],
+                                         start_date="2018-01-01",
+                                         end_date="2019-12-31",
+                                         bands=params['bands']['multispectral'],
+                                         scale=SCALE)
+    tropomi = TropomiImagery(params['collections']['tropomi'],
+                             bands=params['bands']['tropomi'])
+    # Wind imagery adds wind bands from the previous 12 hours
+    wind = WindImagery(params['collections']['wind'],
+                       bands=params['bands']['wind'])
+    # DSM Imagery returns the most recent data prior to the tropomi date
+    dsm = DSMImagery(params['collections']['dsm'],
+                     bands=params['bands']['dsm'])
+    # road is an image, returns clipped image cropped to multispectral region
+    road = RoadImagery(params['collections']['road'],
+                       bands=params['bands']['road'])
 
-    def date_band(date, unit, interval, name):
-        return ee.Image.constant(date.getRelative(unit, interval)).rename(name)
+    print("Stacking bands for %i multispectral images" % len(multispectral))
 
-    def add_day_bands(date, mask):
-        hour_of_day = date_band(date, 'hour', 'day', 'HOD').updateMask(mask)
-        day_of_week = date_band(date, 'day', 'week', 'DOW').updateMask(mask)
-        day_of_month = date_band(date, 'day', 'week', 'DOM').updateMask(mask)
-        month_of_year = date_band(date, 'month', 'year', 'MOY').updateMask(mask
-                                                                           )
-        return ee.Image.cat([hour_of_day, day_of_week,
-                             day_of_month, month_of_year])
-    print("Exporting %i multispectral"% len(multispectral))
+    # First 2 images already exported
     for j in range(2, len(multispectral)):
+        multispectral_image = multispectral[j]
+        image_info = multispectral_image.getInfo()
+        image_id = image_info['properties']['productionID']
 
-        spectral_image = multispectral[j]
-        date = ee.Date(spectral_image.get('collectionStartTime'))
-        geometry = spectral_image.geometry()
-        mask = spectral_image.mask().reduce(ee.Reducer.anyNonZero())
-        imageInfo = spectral_image.getInfo()
-        export_id = imageInfo['properties']['productionID']
+        print("Exporting for Multispectral %s" % image_id)
 
-        print("Exporting for Multispectral %s"%export_id)
-
-        multi_bands = spectral_image.clipToBoundsAndScale(geometry, scale=SCALE)
-        multi_mask = mask.clipToBoundsAndScale(geometry, scale=SCALE)
-        tropo = tropomi.get_bands(date, geometry)
-        tropomi_image = tropo.first()
-        road_bands = road.get_bands(geometry)
-        latlon = ee.Image.pixelLonLat().updateMask(mask).clipToBoundsAndScale(
-            geometry, scale=SCALE)
-
-        def add_bands(tropomi_image):
-            tropomi_bands = tropomi_image.clip(geometry)
-            tropomi_date = tropomi_bands.date()
-            tropomi_mask = tropomi_bands.mask().reduce(ee.Reducer.anyNonZero())
-            wind_bands = wind.get_bands(tropomi_date, geometry)
-            dsm_bands = dsm.get_bands(tropomi_date, geometry).clipToBoundsAndScale(geometry, scale=SCALE)
-            total_mask = multi_mask.float().addBands(tropomi_mask).reduce(
-                                                            ee.Reducer.allNonZero()
-                                                            )
-            cropped_mask = total_mask.clipToBoundsAndScale(geometry, scale=SCALE)
-            convolved_mask = cropped_mask.convolve(
-                ee.Kernel.rectangle(xRadius=1,
-                                    yRadius=KERNEL_RADIUS,
-                                    units='pixels'))
-            convolved_mask = convolved_mask.convolve(
-                ee.Kernel.rectangle(xRadius=KERNEL_RADIUS,
-                                    yRadius=1,
-                                    units='pixels'))
-            valid_neighborhood = convolved_mask.eq(1).unmask(0, False).rename(
-                ['valid'])
-
-            n_valid = valid_neighborhood.reduceRegion(ee.Reducer.sum(),
-                                                      geometry,
-                                                      SCALE)
-            combined = ee.Image.cat([multi_bands, tropomi_bands,
-                                              dsm_bands, wind_bands,
-                                              road_bands,
-                                              add_day_bands(tropomi_date,
-                                                            total_mask).clipToBoundsAndScale(
-							geometry, scale=SCALE),
-                                              latlon,
-                                              valid_neighborhood]).updateMask(
-                                                      total_mask).select(BANDS)
-            return ee.Algorithms.If(ee.Number(n_valid.get('valid')).gt(n_samples),
-                                    combined,
-                                    None)
-
-        tropo_filtered = tropo.map(add_bands, opt_dropNulls=True)
-        size = tropo_filtered.size().getInfo()
-        listed = tropo_filtered.toList(size)
-        print("%i has > %i valid points" % (size, n_samples))
-        for i in range(min(size,2)):
+        stacked_bands_images = images_with_stacked_bands(multispectral_image,
+                                                         wind, dsm, road,
+                                                         tropomi,
+                                                         vertical_kernel,
+                                                         horizontal_kernel,
+                                                         num_samples,
+                                                         BANDS, SCALE)
+        size = stacked_bands_images.size().getInfo()
+        listed = stacked_bands_images.toList(size)
+        print("%i has > %i valid points" % (size, num_samples))
+        for i in range(min(size, 2)):
+            export_id = image_id+"_"+str(i)
             sampler.export_patches(ee.Image(listed.get(i)),
                                    bands=BANDS,
                                    patch_bands=PATCH_BANDS,
-                                   n_samples=n_samples,
-                                   kernel=kernel,
-                                   scale=SCALE,
-                                   export_id=export_id+"_"+str(i))
+                                   export_id=export_id)
