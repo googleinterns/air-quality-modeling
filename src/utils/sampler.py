@@ -18,7 +18,7 @@ import ee
 
 
 class SampleExporter:
-    """Manage export operations, takes images to extract patches."""
+    """Manages export operations, takes images from which to extract patches."""
 
     def __init__(self, task_manager, num_samples, num_shards, kernel, scale,
                  bucket, directory):
@@ -123,8 +123,8 @@ class SampleExporter:
         """
         samples_for_sharding = samples.randomColumn('shard_split')
         for i in range(self.num_shards):
-            range_min = float(i)/float(self.num_shards)
-            range_max = float(i+1)/float(self.num_shards)
+            range_min = float(i) / float(self.num_shards)
+            range_max = float(i + 1) / float(self.num_shards)
             range_filter = ee.Filter.And(
                 ee.Filter.gte('shard_split', range_min),
                 ee.Filter.lt('shard_split', range_max))
@@ -132,9 +132,9 @@ class SampleExporter:
 
             task = ee.batch.Export.table.toCloudStorage(
                 collection=samples_to_export,
-                description=export_id+"_%i" % i,
+                description=export_id + "_%i" % i,
                 bucket=self.bucket,
-                fileNamePrefix=self.directory + '/' + export_id+"_%i" % i,
+                fileNamePrefix=self.directory + '/' + export_id + "_%i" % i,
                 fileFormat='TFRecord',
                 selectors=features,
                 maxWorkers=2000)

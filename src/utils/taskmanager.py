@@ -55,7 +55,7 @@ class TaskManager(object):
     def stop(self):
         """Stop TaskManager Thread and cancel all tasks."""
         self.lock.acquire()
-        for t in (self.active_tasks+self.waiting_tasks):
+        for t in (self.active_tasks + self.waiting_tasks):
             t.cancel()
         self.running = False
         self.lock.release()
@@ -71,8 +71,8 @@ class TaskManager(object):
 
         """
         self.lock.acquire()
-        busy = (len(self.active_tasks) >= self.n_active and
-                len(self.waiting_tasks) >= self.n_waiting)
+        busy = len(self.active_tasks) >= self.n_active
+        busy = busy and len(self.waiting_tasks) >= self.n_waiting
         self.lock.release()
         return busy
 
@@ -91,7 +91,7 @@ class TaskManager(object):
 
         """
         while(self.busy()):
-            time.sleep(self.interval/2)
+            time.sleep(self.interval / 2)
         self.lock.acquire()
         self.waiting_tasks.append(task)
         self.lock.release()
@@ -126,5 +126,5 @@ class TaskManager(object):
                                   task.status()['description'])
 
                         self.active_tasks[self.state] = task
-                    self.state = (self.state+1) % self.n_active
+                    self.state = (self.state + 1) % self.n_active
             self.lock.release()
