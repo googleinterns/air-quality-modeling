@@ -86,7 +86,7 @@ if __name__ == "__main__":
     wind = WindImagery(params['collections']['wind'],
                        bands=params['bands']['wind'])
     # DSM Imagery returns the most recent data prior to the tropomi date
-    dsm = DSMImagery(params['collections']['dsm'],
+    dsm = DSMImagery(params['collections']['dsm'], SCALE,
                      bands=params['bands']['dsm'])
     # road is an image, returns clipped image cropped to multispectral region
     road = RoadImagery(params['collections']['road'],
@@ -114,9 +114,8 @@ if __name__ == "__main__":
         listed = stacked_bands_images.toList(size)
         print("%i has > %i valid points" % (size, num_samples))
         for i in range(min(size, 2)):
-            export_id = image_id+"_"+str(i)
+            export_id = image_id + "_%i" % i
             sampler.export_patches(ee.Image(listed.get(i)),
                                    bands=BANDS,
                                    patch_bands=PATCH_BANDS,
                                    export_id=export_id)
-

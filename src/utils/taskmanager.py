@@ -19,10 +19,10 @@ import time
 
 
 class TaskManager(object):
-    """Class to manage tasks by running a limited number of tasks at a time."""
+    """Manages tasks by running a limited number of tasks at a time."""
 
     def __init__(self, n_active=3, n_waiting=7, interval=2.0, verbose=False):
-        """.
+        """Initializes TaskManager.
 
         Parameters
         ----------
@@ -55,35 +55,34 @@ class TaskManager(object):
     def stop(self):
         """Stop TaskManager Thread and cancel all tasks."""
         self.lock.acquire()
-        for t in (self.active_tasks+self.waiting_tasks):
+        for t in (self.active_tasks + self.waiting_tasks):
             t.cancel()
         self.running = False
         self.lock.release()
         self.thread.join()
 
     def busy(self):
-        """Return True if active queue the waiting queue are full.
+        """Returns True if the active queue and the waiting queue are full.
 
         Returns
         -------
         busy : Boolean
-            True is the task manager os busy, False otherwise
+            True if the task manager is busy, False otherwise
 
         """
         self.lock.acquire()
-        busy = (len(self.active_tasks) >= self.n_active and
-                len(self.waiting_tasks) >= self.n_waiting)
+        busy = len(self.active_tasks) >= self.n_active
+        busy = busy and len(self.waiting_tasks) >= self.n_waiting
         self.lock.release()
         return busy
 
     def submit(self, task):
-        """Block the tasks management to add a task.
+        """Locks the task manager to add a task to the waiting queue.
 
         Parameters.
 
         ----------
         task : EE Task
-
             Adds the task to the waiting queue
         Returns
         -------
@@ -91,13 +90,13 @@ class TaskManager(object):
 
         """
         while(self.busy()):
-            time.sleep(self.interval/2)
+            time.sleep(self.interval / 2)
         self.lock.acquire()
         self.waiting_tasks.append(task)
         self.lock.release()
 
     def check_tasks(self):
-        """Manage the submitted tasks asynchronously in the thread.
+        """Manages the submitted tasks asynchronously in the thread.
 
         Checks one active task every 2 seconds, if a task finishes running
         then it will start a task from the waiting queue (if there is any).
@@ -126,5 +125,5 @@ class TaskManager(object):
                                   task.status()['description'])
 
                         self.active_tasks[self.state] = task
-                    self.state = (self.state+1) % self.n_active
+                    self.state = (self.state + 1) % self.n_active
             self.lock.release()

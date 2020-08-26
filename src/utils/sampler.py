@@ -18,11 +18,11 @@ import ee
 
 
 class SampleExporter:
-    """Manage export operations, takes images to extract patches."""
+    """Manages export operations, takes images from which to extract patches."""
 
     def __init__(self, task_manager, num_samples, num_shards, kernel, scale,
                  bucket, directory):
-        """Initialize the SampleExport object.
+        """Initializes the SampleExporter object.
 
         Parameters
         ----------
@@ -37,13 +37,9 @@ class SampleExporter:
         scale : int
             scale parameter for sampling and export (in meters/pixel)
         bucket : str
-            Google Cloud Storage Bucke name
+            Google Cloud Storage Bucket name
         directory : str
-            Folder to extract the TFRecords to
-
-        Returns
-        -------
-        None.
+            Folder to extract the TFRecords t
 
         """
         # Task parameters
@@ -60,12 +56,12 @@ class SampleExporter:
         self.directory = directory
 
     def export_patches(self, image, bands, patch_bands, export_id):
-        """Export patch and scalar bands and submit tasks to the task manager.
+        """Exports patch and scalar bands and submit tasks to the task manager.
 
         Parameters
         ----------
         image : ee.Image
-            Image from which to extract patches. It should have a 'valid' band.
+            Image from which to extract patches. Assumed to have a 'valid' band
         bands : list[str]
             bands exported as scalars
         patch_bands : list[str]
@@ -73,9 +69,6 @@ class SampleExporter:
         export_id : str
             prefix for the task description
 
-        Returns
-        -------
-        None
 
         """
         valid_pixels = image.select('valid').int()
@@ -105,7 +98,7 @@ class SampleExporter:
         self.export_tasks(samples, features, export_id)
 
     def export_tasks(self, samples, features, export_id):
-        """Shard the samples into num_shards and submit tasks to TaskManager.
+        """Shards the samples into num_shards and submit tasks to TaskManager.
 
         Parameters
         ----------
@@ -123,8 +116,8 @@ class SampleExporter:
         """
         samples_for_sharding = samples.randomColumn('shard_split')
         for i in range(self.num_shards):
-            range_min = float(i)/float(self.num_shards)
-            range_max = float(i+1)/float(self.num_shards)
+            range_min = float(i) / float(self.num_shards)
+            range_max = float(i + 1) / float(self.num_shards)
             range_filter = ee.Filter.And(
                 ee.Filter.gte('shard_split', range_min),
                 ee.Filter.lt('shard_split', range_max))
@@ -132,9 +125,9 @@ class SampleExporter:
 
             task = ee.batch.Export.table.toCloudStorage(
                 collection=samples_to_export,
-                description=export_id+"_%i" % i,
+                description=export_id + "_%i" % i,
                 bucket=self.bucket,
-                fileNamePrefix=self.directory + '/' + export_id+"_%i" % i,
+                fileNamePrefix=self.directory + '/' + export_id + "_%i" % i,
                 fileFormat='TFRecord',
                 selectors=features,
                 maxWorkers=2000)
