@@ -16,8 +16,9 @@ limitations under the License.
 import json
 import argparse
 import ee
-from utils import TaskManager, SampleExporter, images_with_stacked_bands
-from utils import RoadImagery, MultiSpectralImagery, TropomiImagery, DSMImagery, WindImagery
+from utils import TaskManager, SampleExporter, stack_bands_from_imagery
+from utils import RoadImagery, MultiSpectralImagery, TropomiImagery
+from utils import DSMImagery, WindImagery
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Export Data from EarthEngine'
@@ -103,13 +104,13 @@ if __name__ == "__main__":
 
         print("Exporting for Multispectral N:%i, %s" % (j, image_id))
 
-        stacked_bands_images = images_with_stacked_bands(multispectral_image,
-                                                         wind, dsm, road,
-                                                         tropomi,
-                                                         vertical_kernel,
-                                                         horizontal_kernel,
-                                                         num_samples,
-                                                         BANDS, SCALE)
+        stacked_bands_images = stack_bands_from_imagery(multispectral_image,
+                                                        wind, dsm, road,
+                                                        tropomi,
+                                                        vertical_kernel,
+                                                        horizontal_kernel,
+                                                        num_samples,
+                                                        BANDS, SCALE)
         size = stacked_bands_images.size().getInfo()
         listed = stacked_bands_images.toList(size)
         print("%i has > %i valid points" % (size, num_samples))
