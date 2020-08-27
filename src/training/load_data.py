@@ -42,15 +42,18 @@ def load_tfrecords(files, features_dict, input_bands, output_bands,
             inputs_list.append(tf.stack([inputs.get(band) for band in bands],
                                         axis=-1))
         outputs = tf.stack([inputs.get(band) for band in output_bands], axis=-1)
-        return inputs_list, outputs
+        return inputs_list+[outputs]
 
     dataset = tf.data.TFRecordDataset(files, compression_type='GZIP')
     dataset = dataset.map(parse_tfrecord, num_parallel_calls=parallel_calls)
     dataset = dataset.map(stack_inputs, num_parallel_calls=parallel_calls)
     return dataset
 
-def merge_features_without_date(inputs):
-    return tf.stack(inputs[0][:-1],-1), inputs[1]
+def merge_features_without_date(*inputs):
+    return tf.concat(inputs[:-2],2), inputs[-1]
 
-def augment_after_merge(inputs):
-    return tf.image.rot90(inputs[0], k=random.randint(0, 4)), inputs[1]
+def augment_after_merge(inputs, output):
+    return tf.image.rot90(inputs, k=random.randint(0, 4)), output
+
+def scale_no2(inputs, output):
+    return inputs, output*100.0

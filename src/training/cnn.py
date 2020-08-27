@@ -17,7 +17,7 @@ limitations under the License.
 from tensorflow.python.keras import layers
 from tensorflow.python.keras import models
 
-from conv_blocks import conv_block
+from training.conv_blocks import conv_block
 
 
 

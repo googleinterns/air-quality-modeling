@@ -32,9 +32,8 @@ if __name__ == "__main__":
     parser.add_argument('--gpu_index', type=int, default=0)
     parser.add_argument('--tfrecords_path', type=str)
     parser.add_argument('--checkpoint_path', type=str)
-    args = parser.parse_args()
 
-    args = parser.pargse_args()
+    args = parser.parse_args()
 
     params = json.load(open(args.params_path, 'r'))
     model_type = args.model_type
@@ -79,17 +78,17 @@ if __name__ == "__main__":
     input_bands = [spectral_bands, tropo_bands, dsm_bands, wind_bands,
                    road_bands, date_bands]
 
-    train_dataset = training.load_data(tfrecord_files[:-10], features_dict,
+    train_dataset = training.load_tfrecords(tfrecord_files[:-10], features_dict,
                                        input_bands, output)
-    eval_dataset = training.load_data(tfrecord_files[-10:], features_dict,
+    eval_dataset = training.load_tfrecords(tfrecord_files[-10:], features_dict,
                                       input_bands, output)
 
     if model_type.upper() == "CNN":
-        number_of_bands = sum([len(bands) for bands in input_bands])
+        number_of_bands = sum([len(bands) for bands in input_bands]) - len(date_bands)
         inputs = layers.Input(shape=[None, None, number_of_bands])
         train_dataset = train_dataset.map(training.merge_features_without_date)
-        train_dataset = train_dataset.map(training.augment_after_merge)
-        eval_dataset = eval_dataset.map(training.merge_features_without_date)
+        train_dataset = train_dataset.map(training.augment_after_merge).map(training.scale_no2)
+        eval_dataset = eval_dataset.map(training.merge_features_without_date).map(training.scale_no2)
         eval_dataset = eval_dataset.map(training.augment_after_merge)
         model = training.get_cnn_model(inputs)
     model.summary()
@@ -113,7 +112,7 @@ if __name__ == "__main__":
         print('folder checkpoints already exists')
 
     for i in range(EPOCHS):
-        history = model.fit(x=training_dataset, steps_per_epoch=1000,
+        history = model.fit(x=train_dataset, steps_per_epoch=1000,
                             epochs=1, validation_data = eval_dataset,
                             validation_steps = 1000)
         if (i+1)%CKP_EPOCH != 0:
