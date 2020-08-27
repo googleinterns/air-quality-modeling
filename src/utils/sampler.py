@@ -22,7 +22,7 @@ class SampleExporter:
 
     def __init__(self, task_manager, num_samples, num_shards, kernel, scale,
                  bucket, directory):
-        """Initialize the SampleExport object.
+        """Initializes the SampleExporter object.
 
         Parameters
         ----------
@@ -37,13 +37,9 @@ class SampleExporter:
         scale : int
             scale parameter for sampling and export (in meters/pixel)
         bucket : str
-            Google Cloud Storage Bucke name
+            Google Cloud Storage Bucket name
         directory : str
-            Folder to extract the TFRecords to
-
-        Returns
-        -------
-        None.
+            Folder to extract the TFRecords t
 
         """
         # Task parameters
@@ -60,12 +56,12 @@ class SampleExporter:
         self.directory = directory
 
     def export_patches(self, image, bands, patch_bands, export_id):
-        """Export patch and scalar bands and submit tasks to the task manager.
+        """Exports patch and scalar bands and submit tasks to the task manager.
 
         Parameters
         ----------
         image : ee.Image
-            Image from which to extract patches. It should have a 'valid' band.
+            Image from which to extract patches. Assumed to have a 'valid' band
         bands : list[str]
             bands exported as scalars
         patch_bands : list[str]
@@ -73,9 +69,6 @@ class SampleExporter:
         export_id : str
             prefix for the task description
 
-        Returns
-        -------
-        None
 
         """
         valid_pixels = image.select('valid').int()
@@ -105,7 +98,7 @@ class SampleExporter:
         self.export_tasks(samples, features, export_id)
 
     def export_tasks(self, samples, features, export_id):
-        """Shard the samples into num_shards and submit tasks to TaskManager.
+        """Shards the samples into num_shards and submit tasks to TaskManager.
 
         Parameters
         ----------
