@@ -20,7 +20,7 @@ import os
 import unittest
 import random
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-
+# these are relative imports
 from utils import TaskManager
 from dummytask import DummyTask
 

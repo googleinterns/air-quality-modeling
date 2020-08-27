@@ -23,7 +23,7 @@ STATES = ["READY", "RUNNING", "COMPLETED"]
 
 
 class DummyTask:
-    """Dummy Task class to emualte EE tasks."""
+    """Dummy Task class to emulate EE tasks."""
 
     def __init__(self, interval=5.0):
         self.description = ''.join([random.choice(LETTERS)
