@@ -43,7 +43,7 @@ def stack_bands_from_imagery(multispectral_image, wind, dsm, road, tropomi,
     num_samples : int
         Minimum number of valid pixels that stacked image should have
     bands : list[str]
-        list of bands that the image shoudl contain
+        list of bands that the image should contain
     scale : int
         Scale for clipping and sampling
 
