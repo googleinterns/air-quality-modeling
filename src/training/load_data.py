@@ -18,8 +18,6 @@ limitations under the License.
 import tensorflow as tf
 import random
 
-#timezone = TimezoneFinder(in_memory=True)
-
 
 def load_tfrecords(files, features_dict, input_bands, output_bands,
                    parallel_calls=8):
