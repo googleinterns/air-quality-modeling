@@ -90,20 +90,22 @@ if __name__ == "__main__":
         train_dataset = train_dataset.map(training.augment_after_merge).map(training.scale_no2)
         eval_dataset = eval_dataset.map(training.merge_features_without_date).map(training.scale_no2)
         eval_dataset = eval_dataset.map(training.augment_after_merge)
-        model = training.get_cnn_model(inputs)
-    model.summary()
-    EPOCHS = 20
-    BUFFER_SIZE = 1000
+        #model = training.get_cnn_model(inputs)
+    #model.summary()
+    EPOCHS = 100
+    BUFFER_SIZE = 200
     BATCH_SIZE = 32
     CKP_EPOCH = 5
     OPTIMIZER = 'RMSprop'
     LOSS = 'MeanSquaredError'
     METRICS = ['RootMeanSquaredError']
-
+    optimizer = optimizers.get(OPTIMIZER)
+    optimizer.learning_rate = 1e-5    
     train_dataset = train_dataset.shuffle(BUFFER_SIZE).batch(BATCH_SIZE).repeat()
     eval_dataset = eval_dataset.batch(1).repeat()
-
-    model.compile(optimizer=optimizers.get(OPTIMIZER), loss=losses.get(LOSS),
+    
+    model = tf.keras.models.load_model(os.path.join(checkpoint_path,"CNN_19.ckp"))
+    model.compile(optimizer=optimizer, loss=losses.get(LOSS),
                   metrics=[metrics.get(metric) for metric in METRICS])
 
     try:
@@ -112,10 +114,10 @@ if __name__ == "__main__":
         print('folder checkpoints already exists')
 
     for i in range(EPOCHS):
-        history = model.fit(x=train_dataset, steps_per_epoch=1000,
+        history = model.fit(x=train_dataset, steps_per_epoch=500,
                             epochs=1, validation_data = eval_dataset,
-                            validation_steps = 1000)
-        if (i+1)%CKP_EPOCH != 0:
+                            validation_steps = 50)
+        if (i+1)%CKP_EPOCH == 0:
             tf.keras.models.save_model(model,
                                        os.path.join(checkpoint_path,
                                                     model_type+"_%i.ckp" % i))

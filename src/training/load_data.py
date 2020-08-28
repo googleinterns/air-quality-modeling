@@ -56,4 +56,4 @@ def augment_after_merge(inputs, output):
     return tf.image.rot90(inputs, k=random.randint(0, 4)), output
 
 def scale_no2(inputs, output):
-    return inputs, output*100.0
+    return inputs, output*10000.0
