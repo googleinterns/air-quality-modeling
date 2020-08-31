@@ -1,6 +1,11 @@
 # Google Air Quality Modeling project
 
 This repository contains code related to modeling Air Quality at Google.
+Folder 'src' contains the core code.
+The following modules are used for exporting data:
+* [export_data.py](src/export_data.py)
+* [All files in utils folder](src/utils)
+* [Unit test the TaskManager using dummy tasks](src/tests/taskmanager_test.py)
 
 ## Source Code Headers
 
